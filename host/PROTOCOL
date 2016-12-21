@@ -1,0 +1,45 @@
+The host and device communicate over a pipeline-like interface which has the
+following characteristics:
+- It is byte-oriented; packets are a multiple of 8 bits in size.
+- Transmission is reliable; there are no bit errors.
+- Transmission is sequential; bytes arrive in the order they were sent.
+- Flow control is handled by an underlying layer.
+
+One obvious candidate for an implementation of such an interface is a USB
+serial port.
+
+The host and device communicate in pseudo-half-duplex by sending packets to
+each other in an alternating fashion. Initially, the host sends a packet.
+When the device has received the entire packet, it eventually responds by
+sending a packet back to the host. When the device is sending a packet, the
+host is not allowed to send another packet until it has completely received
+the device's packet. The host and device continue taking turns to send
+complete packets, never interrupting each other mid-packet.
+
+
+
+The format of each packet is:
+| <magic> | <type>  | <length> | <value>
+| 2 bytes | 2 bytes | 4 bytes  | n bytes
+
+<magic> is 0x2323, or "##".
+<type> is the big-endian command type, i.e. message ID.
+<length> is the big-endian length (in bytes) of <value>.
+<value> is the "payload" for a packet; a serialised protocol buffer message.
+
+
+
+As an example, the packet "23 23 00 09 00 00 00 03 08 96 01" has:
+<magic> = 0x2323, which is correct.
+<type> = 0x0009, which corresponds to "get address and public key".
+<length> = 0x00000003, indicating that <value> has a length of 3 bytes.
+<value> = {0x08, 0x96, 0x01}, a GetAddressAndPublicKey message with
+the address_handle field set to 150.
+
+Therefore, this packet instructs the device to obtain the address and public
+key of address handle 150 in the current wallet.
+
+
+
+For a list of command types/message IDs, see stream_comm.h.
+For a definition of the protocol buffer messages, see messages.proto.

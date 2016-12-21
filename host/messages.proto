@@ -1,0 +1,316 @@
+import "nanopb.proto";
+
+// Specifies algorithm used for deterministic wallet.
+enum Algorithm
+{
+	// See https://en.bitcoin.it/wiki/BIP_0032
+	BIP32 = 0;
+	// Note that the BitSafe is unlikely to support Electrum's determinstic
+	// wallet algorithm.
+	ELECTRUM = 1;
+}
+
+// Reset state of wallet. If a wallet is loaded, this message will unload
+// (lock) it.
+//
+// Direction: Host to Device
+// Responses: Features
+message Initialize
+{
+	// Arbitrary session identifier, which will be echoed back in the response
+	// (a Features message).
+    required bytes session_id = 1 [(nanopb).max_size = 64];
+}
+
+// List of features supported by the device.
+//
+// Direction: Device To Host
+// Responses: none
+message Features
+{
+	// Echoed from Initialize message.
+	required bytes echoed_session_id = 1 [(nanopb).max_size = 64];
+	// Name of the manufacturer eg. "Aperture Science".
+	optional string vendor = 2;
+	// Major version number of the device eg. 0.
+	optional uint32 major_version = 3;
+	// Minor version number of the device eg. 9.
+	optional uint32 minor_version = 4;
+	// Vendor-specific configuration information (eg. firmware build options).
+	optional string config = 5;
+	// Whether device is able to use OtpRequest interjections.
+	optional bool otp = 6;
+	// Whether device is able to use PinRequest interjections.
+	optional bool pin = 7;
+	// Whether device expects supporting transactions to be included when
+	// signing a transaction.
+	optional bool spv = 8;
+	// List of supported deterministic wallet algorithms.
+	repeated Algorithm algo = 9 [(nanopb).max_count = 2];
+	// Whether DebugLink is enabled. Production builds will never have
+	// DebugLink enabled.
+	optional bool debug_link = 10;
+}
+
+// Check whether device is still alive.
+//
+// Direction: Host to Device
+// Responses: PingResponse
+message Ping
+{
+	// Arbitrary greeting which will be echoed back in the response
+	// (PingResponse message).
+	optional string greeting = 1 [(nanopb).max_size = 64];
+}
+
+// Response to Ping message which indicates to the host that the device is
+// still alive.
+//
+// Direction: Device To Host
+// Responses: none
+message PingResponse
+{
+	// Echoed from Ping message.
+	optional string echoed_greeting = 1 [(nanopb).max_size = 64];
+	// Echoed from most recent Initialize message. The host can use this as
+	// a sanity check to ensure the device hasn't reset itself in the middle
+	// of a session. If Initialize hasn't been called since reset, this will
+	// be filled with 00s.
+	required bytes echoed_session_id = 2 [(nanopb).max_size = 64];
+}
+
+// Responses: none
+message Success
+{
+}
+
+// Responses: none
+message Failure
+{
+	// Numeric identifier of error.
+	required uint32 error_code = 1;
+	// Human-readable description of error.
+	required string error_message = 2;
+}
+
+// Interjection sent from the device to the host specifying that a button
+// press (on the device) is required in order to continue.
+// Responses: ButtonAck or ButtonCancel
+message ButtonRequest
+{
+}
+
+// Host grants permission for device to wait for button press.
+message ButtonAck
+{
+}
+
+// Host denies permission for device to wait for button press. This will
+// probably cause the current action to be cancelled.
+message ButtonCancel
+{
+}
+
+// Interjection sent from the device to the host specifying that an action
+// requires a password to be submitted to the device.
+message PinRequest
+{
+}
+
+// Host submits password to the device.
+message PinAck
+{
+	required bytes password = 1;
+}
+
+// Host does not want to submit password to the device.
+message PinCancel
+{
+}
+
+message OtpRequest
+{
+}
+
+message OtpAck
+{
+	required string otp = 1 [(nanopb).max_size = 16];
+}
+
+message OtpCancel
+{
+}
+
+// Delete a wallet, making space for another one. Deleting a wallet does not
+// require that wallet to be loaded. Thus it is possible to delete a wallet
+// that you don't own.
+//
+// Direction: Host to Device
+// Responses: Success or Failure
+// Response interjections: ButtonRequest, OtpRequest
+message DeleteWallet
+{
+	// Which wallet to delete.
+	optional uint32 wallet_handle = 1 [default = 0];
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+// wallet_name is stored purely for the convenience of the host. It should be
+// a null-terminated UTF-8 encoded string with a maximum length of 40 bytes.
+// To create an unencrypted wallet, exclude password.
+message NewWallet
+{
+	optional uint32 wallet_number = 1 [default = 0];
+	optional bytes password = 2;
+	optional bytes wallet_name = 3 [(nanopb).max_size = 40];
+	optional bool is_hidden = 4 [default = false];
+}
+
+// Responses: Address or Failure
+// Response interjections: ButtonRequest
+message NewAddress
+{
+}
+
+// Responses: none
+message Address
+{
+	required uint32 address_handle = 1;
+	required bytes public_key = 2 [(nanopb).max_size = 65];
+	required bytes address = 3 [(nanopb).max_size = 20];
+}
+
+// Responses: NumberOfAddresses or Failure
+message GetNumberOfAddresses
+{
+}
+
+// Responses: none
+message NumberOfAddresses
+{
+	required uint32 number_of_addresses = 1;
+}
+
+// Responses: Address or Failure
+message GetAddressAndPublicKey
+{
+	required uint32 address_handle = 1;
+}
+
+// Responses: Signature or Failure
+// Response interjections: ButtonRequest
+message SignTransaction
+{
+	required uint32 address_handle = 1;
+	required bytes transaction_data = 2;
+}
+
+// Responses: none
+message Signature
+{
+	required bytes signature_data = 1 [(nanopb).max_size = 73];
+}
+
+// Responses: Success or Failure
+// Response interjections: PinRequest
+message LoadWallet
+{
+	optional uint32 wallet_number = 1 [default = 0];
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+message FormatWalletArea
+{
+	required bytes initial_entropy_pool = 1 [(nanopb).max_size = 32];
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+// To change the current wallet into an unencrypted wallet,
+// exclude password.
+message ChangeEncryptionKey
+{
+	optional bytes password = 1;
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+// wallet_name is stored purely for the convenience of the host. It should be
+// a null-terminated UTF-8 encoded string with a maximum length of 40 bytes.
+message ChangeWalletName
+{
+	required bytes wallet_name = 1 [(nanopb).max_size = 40];
+}
+
+// Responses: Wallets or Failure
+message ListWallets
+{
+}
+
+// Responses: none
+message WalletInfo
+{
+	required uint32 wallet_number = 1;
+	required bytes wallet_name = 2 [(nanopb).max_size = 40];
+	required bytes wallet_uuid = 3 [(nanopb).max_size = 16];
+}
+
+// Responses: none
+message Wallets
+{
+	repeated WalletInfo wallet_info = 1;
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+message BackupWallet
+{
+	optional bool is_encrypted = 1 [default = false];
+	optional uint32 device = 2 [default = 0];
+}
+
+// Responses: Success or Failure
+// Response interjections: ButtonRequest
+message RestoreWallet
+{
+	required NewWallet new_wallet = 1;
+	required bytes seed = 2 [(nanopb).max_size = 64];
+}
+
+// Responses: DeviceUUID or Failure
+message GetDeviceUUID
+{
+}
+
+// Responses: none
+message DeviceUUID
+{
+	required bytes device_uuid = 1 [(nanopb).max_size = 16];
+}
+
+// Responses: Entropy or Failure
+message GetEntropy
+{
+	required uint32 number_of_bytes = 1;
+}
+
+// Responses: none
+message Entropy
+{
+	required bytes entropy = 1;
+}
+
+// Responses: MasterPublicKey or Failure
+// Response interjections: ButtonRequest
+message GetMasterPublicKey
+{
+}
+
+// Responses: none
+message MasterPublicKey
+{
+	required bytes public_key = 1 [(nanopb).max_size = 65];
+	required bytes chain_code = 2 [(nanopb).max_size = 32];
+}

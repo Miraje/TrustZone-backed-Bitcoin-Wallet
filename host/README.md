@@ -1,0 +1,27 @@
+Hardware Bitcoin Wallet
+by someone42, unless stated otherwise
+
+A minimal Bitcoin (see http://bitcoin.org/ ) wallet for embedded devices. The
+wallet is responsible for parsing transactions, prompting the user and signing
+transactions. In order to do this, the wallet also stores and manages private
+keys, but it does not store anything else. The wallet is not aware of the
+blockchain and communicates with a BitCoin client ("the host" from the point
+of view of the code here) via. a point-to-point stream-based link.
+
+Everything in the top-level source directory is self-contained and should be
+platform-independent. The only platform-dependent file there is common.h,
+which should be modified if porting to other platforms. hwinterface.h
+describes what platform-dependent functions need to be implemented. The
+Makefile in the top-level source directory will build platform-independent
+unit tests. Those unit tests can make use of the test vectors in the
+test_vectors/ subdirectory.
+
+Everything in the avr/ subdirectory is specific to the 8 bit AVR platform. The
+Makefile in avr/ will produce a (non-testing) binary suitable for programming
+an 8 bit AVR device with.
+
+Everything in the lpc11uxx/ subdirectory is specific to the LPC11Uxx series of
+microcontrollers. The lpc11uxx/ subdirectory also contains a Makefile which
+will produce a non-testing binary.
+
+TODO: Change this disciption
